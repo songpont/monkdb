@@ -2,14 +2,7 @@
    Main — entry point
    ============================================================ */
 
-(function init() {
-  initNav();
+import { initNav, navigate, DEFAULT_SECTION } from './nav.js';
 
-  // Navigate to section from hash or default
-  const hash = location.hash.replace('#', '');
-  navigate(hash || DEFAULT_SECTION);
-
-  // Shared footer behavior
-  const footerYear = document.getElementById('footerYear');
-  if (footerYear) footerYear.textContent = new Date().getFullYear() + 543;
-})();
+initNav();
+navigate(location.hash.replace('#', '') || DEFAULT_SECTION);

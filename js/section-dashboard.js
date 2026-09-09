@@ -1,6 +1,26 @@
 /* Section: source/ธรรมนูญสุขภาพพระสงฆ์_dashboard.html */
 
-function renderDashboard(container) {
+import {
+  animateFadeIn, animateBars, animateGapBars, animateCounters, animateGrpBars,
+  trackObserver, trackRaf, teardownAnimations
+} from './utils.js';
+import { loadCluster } from './api.js';
+import { mountYearTabs } from './year-tabs.js';
+import { renderYearCompare, clusterCompareIndex } from './year-compare.js';
+
+let currentYear = 2568;
+function onYearChange(container, y) { currentYear = y; teardownAnimations(); render(container); }
+
+const DASH_METRICS = [
+  { key: 'pm2', label: 'ป่วยร่วม ≥2 โรค' },
+  { key: 'I10', label: 'ความดันโลหิตสูง (I10)' },
+  { key: 'E78', label: 'ไขมันในเลือดสูง (E78)' },
+  { key: 'E11', label: 'เบาหวาน (E11)' },
+  { key: 'N18', label: 'ไตวายเรื้อรัง (N18)' }
+];
+
+export async function render(container) {
+  if (currentYear === 'compare') return renderCompareView(container);
   container.innerHTML = `
 
 <header class="hero">
@@ -616,13 +636,47 @@ function renderDashboard(container) {
 
   </div>
 </section>
-
-
-<footer>
-  จัดทำเพื่อการสื่อสารภายใน อ้างอิงจาก “คู่มือธรรมนูญสุขภาพพระสงฆ์แห่งชาติ พ.ศ. ๒๕๖๖” (๕ หมวด ๓๐ ข้อ), “แผนปฏิบัติการเพื่อการขับเคลื่อนธรรมนูญสุขภาพพระสงฆ์แห่งชาติ พ.ศ. ๒๕๖๙–๒๕๗๕” และข้อมูลเชื่อมโยงทะเบียนพระสงฆ์สามเณรกับฐานการวินิจฉัยโรค HISO (พ.ศ. ๒๕๖๘, N=237,725) <br>
-  จัดพิมพ์โดย <b>สำนักงานคณะกรรมการสุขภาพแห่งชาติ (สช.)</b> — เป้าหมายร่วม “พระแข็งแรง วัดมั่นคง ชุมชนเป็นสุข”
-</footer>`;
+`;
   initDashboard(container);
+  mountYearTabs(container, {
+    years: [2568], current: currentYear, compare: true,
+    onChange: (y) => onYearChange(container, y)
+  });
+}
+
+async function renderCompareView(container) {
+  container.innerHTML = `
+<header class="hero"><div class="hero-inner"><div>
+  <p class="eyebrow">ภาพรวม · เทียบรายปี</p>
+  <h1>สถานการณ์สุขภาพพระสงฆ์<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘</span></h1>
+  <p class="lede">ตัวเลขหลักจากการเชื่อมข้อมูล HISO — สัดส่วนพระสงฆ์ที่ป่วยหลายโรคพร้อมกัน และโรคหลัก ๔ โรค ตั้งแต่ระดับประเทศถึงรายจังหวัด</p>
+</div></div></header>
+<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+
+  mountYearTabs(container, {
+    years: [2568], current: 'compare', compare: true,
+    onChange: (y) => onYearChange(container, y)
+  });
+
+  const S = { NATIONAL_MULTI: {}, REGION_SUMMARY: [], REGION_PROVINCES: {} };
+  const [nw, od] = await Promise.all([loadCluster(S, 2568), loadCluster(S, 2567)]);
+  const cmp = container.querySelector('#cmp');
+  if (nw.source !== 'd1' || od.source !== 'd1') {
+    cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์ (เวอร์ชันนี้ยังใช้ข้อมูลสำรอง)</div>';
+    return;
+  }
+  const iN = clusterCompareIndex(nw.data), iO = clusterCompareIndex(od.data);
+  renderYearCompare(cmp, {
+    yearOld: 2567, yearNew: 2568, geos: iN.geos, defaultGeo: 'national|TH',
+    intro: 'ตัวเลขนี้นับรวมทุกคนที่เคยตรวจพบว่าเป็นโรค (ไม่เริ่มนับใหม่รายปี) — ส่วนต่างคือจำนวนที่ถูกตรวจพบเพิ่มขึ้นในรอบปี ระหว่าง พ.ศ. ๒๕๖๗ กับ ๒๕๖๘',
+    getRows: (gid) => {
+      const n = iN.get(gid), o = iO.get(gid);
+      if (!n || !o) return [];
+      return DASH_METRICS.map((m) => ({ key: m.key, label: m.label, a: o[m.key], b: n[m.key] }));
+    },
+    note: 'ส่วนธรรมนูญ ๕ หมวด แผนขับเคลื่อน และภาวนา ๔ เป็นเนื้อหาเชิงหลักการ ไม่เกี่ยวกับปีข้อมูล'
+  });
+  animateFadeIn(container);
 }
 
 function initDashboard(container) {
@@ -632,33 +686,16 @@ function initDashboard(container) {
   animateCounters(container);
   animateGrpBars(container);
 
-// Nav active state + smooth scroll
-  const navButtons = document.querySelectorAll('.navlinks button');
-  const sections = ['why','stats','charter','done','plans'].map(id=>document.getElementById(id));
-  navButtons.forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      document.getElementById(btn.dataset.target).scrollIntoView({behavior:'smooth', block:'start'});
-    });
-  });
-  const spy = new IntersectionObserver((entries)=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting){
-        navButtons.forEach(b=>b.classList.toggle('active', b.dataset.target===e.target.id));
-      }
-    });
-  }, {rootMargin:'-40% 0px -55% 0px', threshold:0});
-  sections.forEach(s=>spy.observe(s));
-
   // Fade-in on scroll
   const fadeEls = document.querySelectorAll('.fade-in');
-  const fadeObs = new IntersectionObserver((entries)=>{
+  const fadeObs = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); fadeObs.unobserve(e.target); } });
-  }, {threshold:.12});
+  }, {threshold:.12}));
   fadeEls.forEach(el=>fadeObs.observe(el));
 
   // Count-up stats
   const counters = document.querySelectorAll('.stat-num');
-  const countObs = new IntersectionObserver((entries)=>{
+  const countObs = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){
         const el = e.target;
@@ -676,32 +713,32 @@ function initDashboard(container) {
           let display = isDecimal ? cur.toFixed(1) : Math.round(cur);
           if(isBig) display = Number(display).toLocaleString('th-TH');
           el.textContent = display + suffix;
-          if(p<1) requestAnimationFrame(tick);
+          if(p<1) trackRaf(requestAnimationFrame(tick));
         }
-        requestAnimationFrame(tick);
+        trackRaf(requestAnimationFrame(tick));
         countObs.unobserve(el);
       }
     });
-  }, {threshold:.4});
+  }, {threshold:.4}));
   counters.forEach(c=>countObs.observe(c));
 
   // Bar fills (all types)
   const barSelectors = '.bar-fill, .gap-bar-fill';
   const bars = document.querySelectorAll(barSelectors);
-  const barObs = new IntersectionObserver((entries)=>{
+  const barObs = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){ e.target.style.width = e.target.dataset.w + '%'; barObs.unobserve(e.target); }
     });
-  }, {threshold:.3});
+  }, {threshold:.3}));
   bars.forEach(b=>barObs.observe(b));
 
   // Growth mini vertical bars (capacity section)
   const gmBars = document.querySelectorAll('.gm-bar');
-  const gmObs = new IntersectionObserver((entries)=>{
+  const gmObs = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){ e.target.style.height = e.target.dataset.h + '%'; gmObs.unobserve(e.target); }
     });
-  }, {threshold:.3});
+  }, {threshold:.3}));
   gmBars.forEach(b=>gmObs.observe(b));
 
   // Age-gradient interactive chart
@@ -731,11 +768,11 @@ function initDashboard(container) {
       renderAgeChart(chip.dataset.disease);
     });
   });
-  const ageChartObs = new IntersectionObserver((entries)=>{
+  const ageChartObs = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){ renderAgeChart('I10'); ageChartObs.unobserve(e.target); }
     });
-  }, {threshold:.3});
+  }, {threshold:.3}));
   const ageChartEl = document.getElementById('ageChart');
   if(ageChartEl) ageChartObs.observe(ageChartEl);
 
@@ -791,16 +828,16 @@ function initDashboard(container) {
   });
 
   const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(!prefersReduced){
+  const outerRing = document.querySelector('#bhavanaWheel circle[stroke-width="1"]');
+  if(!prefersReduced && outerRing){
     let deg = 0;
-    const outerRing = document.querySelector('#bhavanaWheel circle[stroke-width="1"]');
     function spin(){
       deg += 0.03;
       outerRing.setAttribute('stroke-dasharray', '2 6');
       outerRing.setAttribute('stroke-dashoffset', deg*3);
-      requestAnimationFrame(spin);
+      trackRaf(requestAnimationFrame(spin));
     }
-    requestAnimationFrame(spin);
+    trackRaf(requestAnimationFrame(spin));
   }
   // Dashboard sub-nav
   const dashNavBtns = container.querySelectorAll('.dash-nav-btn');
@@ -811,15 +848,12 @@ function initDashboard(container) {
       if(target) target.scrollIntoView({behavior:'smooth', block:'start'});
     });
   });
-  const dashSpy = new IntersectionObserver((entries)=>{
+  const dashSpy = trackObserver(new IntersectionObserver((entries)=>{
     entries.forEach(e=>{
       if(e.isIntersecting){
         dashNavBtns.forEach(b=>b.classList.toggle('active', b.dataset.dtarget===e.target.id));
       }
     });
-  }, {rootMargin:'-40% 0px -55% 0px', threshold:0});
+  }, {rootMargin:'-40% 0px -55% 0px', threshold:0}));
   dashSections.forEach(s=>{ if(s) dashSpy.observe(s); });
 }
-
-// Also expose for direct use
-const firstPageInit = initDashboard;

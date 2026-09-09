@@ -1,6 +1,20 @@
 /* Section: source/เทียบพระสงฆ์กับคนทั่วไป_30โรค.html */
 
-function renderCompare(container) {
+import {
+  animateFadeIn, animateBars, animateGapBars, animateCounters, animateGrpBars,
+  trackObserver
+} from './utils.js';
+import { BUNDLE, COMP, AGESTD, WEIGHTS } from './data/data-comparison.js';
+import { DATA as PREV_STATIC } from './data/data-prevalence.js';
+import { loadPrevalence } from './api.js';
+import { mountYearTabs } from './year-tabs.js';
+import { renderYearCompare } from './year-compare.js';
+
+let currentYear = 2568;
+function onYearChange(container, y) { currentYear = y; render(container); }
+
+export async function render(container) {
+  if (currentYear === 'compare') return renderCompareYears(container);
   container.innerHTML = `
 
 <header class="hero">
@@ -136,6 +150,53 @@ function renderCompare(container) {
 
 `;
   initCompare(container);
+  mountYearTabs(container, {
+    years: [2568], current: currentYear, compare: true,
+    onChange: (y) => onYearChange(container, y)
+  });
+}
+
+async function renderCompareYears(container) {
+  container.innerHTML = `
+<header class="hero"><div class="hero-inner">
+  <p class="eyebrow" style="color:var(--saffron-500);">เทียบพระสงฆ์ กับ ชายไทยทั่วไป · เทียบรายปี</p>
+  <h1>พระสงฆ์ขยับเข้าใกล้ หรือห่างจากคนทั่วไป<br><span>อัตราส่วน (พระสงฆ์ ÷ ชายไทยทั่วไป) เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘</span></h1>
+</div></header>
+<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+
+  mountYearTabs(container, {
+    years: [2568], current: 'compare', compare: true,
+    onChange: (y) => onYearChange(container, y)
+  });
+
+  const [nw, od] = await Promise.all([
+    loadPrevalence(PREV_STATIC, 2568),
+    loadPrevalence(PREV_STATIC, 2567)
+  ]);
+  const cmp = container.querySelector('#cmp');
+  if (nw.source !== 'd1' || od.source !== 'd1') {
+    cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์</div>';
+    return;
+  }
+  const N = nw.data.national, O = od.data.national;
+  const CODES = Object.keys(COMP);
+  const ratio = (monk, gen) => (monk != null && gen) ? +(monk / gen).toFixed(2) : null;
+
+  renderYearCompare(cmp, {
+    yearOld: 2567, yearNew: 2568,
+    geos: [{ id: 'national|TH', label: 'ทั้งประเทศ' }], defaultGeo: 'national|TH',
+    unit: 'x', deltaLabel: 'ต่างกัน (เท่า)',
+    legendLow: 'พระสงฆ์ขยับเข้าใกล้คนทั่วไป', legendHigh: 'พระสงฆ์สูงกว่าคนทั่วไปมากขึ้น',
+    intro: 'อัตราส่วน = % พระสงฆ์ ÷ % ชายไทยทั่วไป · มากกว่า 1 คือพระสงฆ์เป็นมากกว่า, น้อยกว่า 1 คือพระสงฆ์เป็นน้อยกว่า · ดูว่าปีต่อปี พระสงฆ์ขยับเข้าใกล้หรือห่างจากคนทั่วไป',
+    getRows: () => CODES.map((c) => ({
+      key: c,
+      label: `${COMP[c].name} (${c})`,
+      a: ratio(O[c], COMP[c].gen_pct),
+      b: ratio(N[c], COMP[c].gen_pct)
+    })),
+    note: 'ตัวเลขฝั่งคนทั่วไปใช้ของ พ.ศ. ๒๕๖๘ เท่ากันทั้งสองปี ที่เปลี่ยนคือฝั่งพระสงฆ์อย่างเดียว (นับสะสม จึงมีแต่เพิ่ม ยกเว้นโรคที่หายได้ เช่น ไข้หวัด/ท้องเสีย)'
+  });
+  animateFadeIn(container);
 }
 
 function initCompare(container) {
@@ -144,11 +205,6 @@ function initCompare(container) {
   animateGapBars(container);
   animateCounters(container);
   animateGrpBars(container);
-
-const BUNDLE = {"comparison": {"I10": {"name": "ความดันโลหิตสูง", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 17.23, "gen_pct": 22.77, "ratio": 0.76, "diff_pp": -5.54}, "E11": {"name": "เบาหวาน", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 10.0, "gen_pct": 11.25, "ratio": 0.89, "diff_pp": -1.25}, "E78": {"name": "ไขมันในเลือดสูง", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 15.51, "gen_pct": 16.71, "ratio": 0.93, "diff_pp": -1.2}, "N18": {"name": "ไตวายเรื้อรัง", "group": "ไต/ทางเดินปัสสาวะ", "monk_pct": 4.06, "gen_pct": 4.11, "ratio": 0.99, "diff_pp": -0.05}, "J06": {"name": "ติดเชื้อทางเดินหายใจส่วนบน", "group": "ทางเดินหายใจ", "monk_pct": 0.77, "gen_pct": 0.84, "ratio": 0.92, "diff_pp": -0.07}, "I63": {"name": "สมองขาดเลือด", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 1.14, "gen_pct": 0.95, "ratio": 1.2, "diff_pp": 0.19}, "I25": {"name": "หัวใจขาดเลือดเรื้อรัง", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 2.12, "gen_pct": 1.38, "ratio": 1.54, "diff_pp": 0.74}, "A09": {"name": "ท้องเสีย", "group": "อื่นๆ", "monk_pct": 1.75, "gen_pct": 2.07, "ratio": 0.85, "diff_pp": -0.32}, "H25": {"name": "ต้อกระจก", "group": "อื่นๆ", "monk_pct": 1.49, "gen_pct": 1.6, "ratio": 0.93, "diff_pp": -0.11}, "J18": {"name": "ปอดอักเสบ", "group": "ทางเดินหายใจ", "monk_pct": 1.67, "gen_pct": 1.31, "ratio": 1.27, "diff_pp": 0.36}, "J44": {"name": "ปอดอุดกั้นเรื้อรัง (COPD)", "group": "ทางเดินหายใจ", "monk_pct": 2.22, "gen_pct": 1.0, "ratio": 2.22, "diff_pp": 1.22}, "S06": {"name": "บาดเจ็บกะโหลกศีรษะ", "group": "อื่นๆ", "monk_pct": 0.41, "gen_pct": 0.49, "ratio": 0.84, "diff_pp": -0.08}, "M54": {"name": "ปวดหลัง", "group": "อื่นๆ", "monk_pct": 1.28, "gen_pct": 2.06, "ratio": 0.62, "diff_pp": -0.78}, "C22": {"name": "มะเร็งตับ", "group": "มะเร็ง", "monk_pct": 0.21, "gen_pct": 0.15, "ratio": 1.4, "diff_pp": 0.06}, "K29": {"name": "กระเพาะอักเสบ", "group": "อื่นๆ", "monk_pct": 0.93, "gen_pct": 1.07, "ratio": 0.87, "diff_pp": -0.14}, "C34": {"name": "มะเร็งปอด", "group": "มะเร็ง", "monk_pct": 0.16, "gen_pct": 0.14, "ratio": 1.14, "diff_pp": 0.02}, "N40": {"name": "ต่อมลูกหมากโต", "group": "ไต/ทางเดินปัสสาวะ", "monk_pct": 2.75, "gen_pct": 1.07, "ratio": 2.57, "diff_pp": 1.68}, "F10": {"name": "ติดสุรา", "group": "จิตเวช/สารเสพติด", "monk_pct": 0.51, "gen_pct": 0.69, "ratio": 0.74, "diff_pp": -0.18}, "I50": {"name": "หัวใจล้มเหลว", "group": "เมตาบอลิก/หัวใจ", "monk_pct": 1.22, "gen_pct": 1.04, "ratio": 1.17, "diff_pp": 0.18}, "C18-C21": {"name": "มะเร็งลำไส้ใหญ่/ทวารหนัก", "group": "มะเร็ง", "monk_pct": 0.29, "gen_pct": 0.31, "ratio": 0.94, "diff_pp": -0.02}, "F32": {"name": "ซึมเศร้า", "group": "จิตเวช/สารเสพติด", "monk_pct": 0.51, "gen_pct": 0.84, "ratio": 0.61, "diff_pp": -0.33}, "A15-A16": {"name": "วัณโรค", "group": "โรคติดต่อ", "monk_pct": 0.53, "gen_pct": 0.36, "ratio": 1.47, "diff_pp": 0.17}, "B20-B24": {"name": "HIV", "group": "โรคติดต่อ", "monk_pct": 1.33, "gen_pct": 1.08, "ratio": 1.23, "diff_pp": 0.25}, "M10": {"name": "เก๊าท์", "group": "อื่นๆ", "monk_pct": 2.45, "gen_pct": 1.57, "ratio": 1.56, "diff_pp": 0.88}, "F15": {"name": "ติดสารกระตุ้นอื่นๆ", "group": "จิตเวช/สารเสพติด", "monk_pct": 0.63, "gen_pct": 0.82, "ratio": 0.77, "diff_pp": -0.19}, "N20": {"name": "นิ่วในไต/ทางเดินปัสสาวะ", "group": "ไต/ทางเดินปัสสาวะ", "monk_pct": 0.4, "gen_pct": 0.52, "ratio": 0.77, "diff_pp": -0.12}, "L03": {"name": "เนื้อเยื่ออักเสบ", "group": "อื่นๆ", "monk_pct": 1.26, "gen_pct": 1.03, "ratio": 1.22, "diff_pp": 0.23}, "C61": {"name": "มะเร็งต่อมลูกหมาก", "group": "มะเร็ง", "monk_pct": 0.14, "gen_pct": 0.08, "ratio": 1.75, "diff_pp": 0.06}, "J45": {"name": "หอบหืด", "group": "ทางเดินหายใจ", "monk_pct": 0.82, "gen_pct": 1.04, "ratio": 0.79, "diff_pp": -0.22}, "U07.1": {"name": "COVID-19", "group": "โรคติดต่อ", "monk_pct": 0.4, "gen_pct": 0.45, "ratio": 0.89, "diff_pp": -0.05}}, "age_weights": {"w20_39": 0.38647822575328794, "w40_59": 0.38775326710281205, "w60p": 0.2257685071439001, "pct20_39": 38.6, "pct40_59": 38.8, "pct60p": 22.6}, "age_standardized": {"I10": {"raw": 17.23, "std": 14.48, "gen": 22.77}, "E11": {"raw": 10.0, "std": 9.03, "gen": 11.25}, "E78": {"raw": 15.51, "std": 13.96, "gen": 16.71}, "N18": {"raw": 4.06, "std": 3.18, "gen": 4.11}}};
-const COMP = BUNDLE.comparison;
-const AGESTD = BUNDLE.age_standardized;
-const WEIGHTS = BUNDLE.age_weights;
 
 const GROUP_ORDER = ['เมตาบอลิก/หัวใจ','ไต/ทางเดินปัสสาวะ','ทางเดินหายใจ','มะเร็ง','จิตเวช/สารเสพติด','โรคติดต่อ','อื่นๆ'];
 let currentFilter = 'ทั้งหมด';
@@ -244,34 +300,20 @@ document.querySelectorAll('#fullTable th[data-sort]').forEach(th=>{
   });
 });
 
-function initDashboard(){
+function mount(){
   try{
     renderGroupFilter();
     renderDivergeChart();
     renderAgeStdGrid();
     renderFullTable();
 
-    const navButtons = document.querySelectorAll('.navlinks button');
-    const sectionIds = ['intro','ratio','agestd','table','caveats'];
-    const sections = sectionIds.map(id=>document.getElementById(id)).filter(Boolean);
-    navButtons.forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        const t = document.getElementById(btn.dataset.target);
-        if(t) t.scrollIntoView({behavior:'smooth', block:'start'});
-      });
-    });
-    const spy = new IntersectionObserver((entries)=>{
-      entries.forEach(e=>{ if(e.isIntersecting){ navButtons.forEach(b=>b.classList.toggle('active', b.dataset.target===e.target.id)); } });
-    }, {rootMargin:'-35% 0px -55% 0px', threshold:0});
-    sections.forEach(s=>spy.observe(s));
-
     const fadeEls = document.querySelectorAll('.fade-in');
-    const fadeObs = new IntersectionObserver((entries)=>{
+    const fadeObs = trackObserver(new IntersectionObserver((entries)=>{
       entries.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); fadeObs.unobserve(e.target); } });
-    }, {threshold:.1});
+    }, {threshold:.1}));
     fadeEls.forEach(el=>fadeObs.observe(el));
   } catch(err){ console.error('init error', err); }
 }
-if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', initDashboard); } else { initDashboard(); }
+mount();
 
 }

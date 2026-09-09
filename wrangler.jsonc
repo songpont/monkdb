@@ -1,0 +1,55 @@
+{
+  // ── production ──────────────────────────────────────────────
+  // assets-only (ไม่มี Worker script) — เสิร์ฟ dist/ ตรงๆ
+  //   deploy:  npm run deploy
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "monk-health-charter",
+  "compatibility_date": "2024-11-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+
+  // Worker + D1 มี 2 environment. ทั้งคู่ล็อกด้วย Basic Auth (secret STAGING_AUTH="user:pass")
+  //   staging : สนามทดลอง ล้าง/reseed ได้อิสระ           deploy: npm run deploy:staging
+  //   v2      : prod-candidate ของเวอร์ชันถัดไป           deploy: npm run deploy:v2
+  //   ตั้งรหัส: npx wrangler secret put STAGING_AUTH --env <staging|v2>
+  "env": {
+    "staging": {
+      "name": "monk-health-charter-staging",
+      "main": "worker/index.js",
+      "vars": { "ENVIRONMENT": "staging" },
+      "assets": {
+        "directory": "./dist",
+        "not_found_handling": "single-page-application",
+        "binding": "ASSETS",
+        "run_worker_first": true
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "monk-health-staging",
+          "database_id": "8975978c-d57c-4d7c-b23d-c886a8824225"
+        }
+      ]
+    },
+    "v2": {
+      "name": "monk-health-charter-v2",
+      "main": "worker/index.js",
+      "vars": { "ENVIRONMENT": "v2" },
+      "assets": {
+        "directory": "./dist",
+        "not_found_handling": "single-page-application",
+        "binding": "ASSETS",
+        "run_worker_first": true
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "monk-health",
+          "database_id": "3ee0448b-b10a-458c-9020-fdf94493e56c"
+        }
+      ]
+    }
+  }
+}

@@ -21,41 +21,63 @@ Single Page Application แสดงข้อมูลสุขภาพพร�
 
 ## เทคโนโลยี
 
-- HTML/CSS/JavaScript (Vanilla JS — ไม่มี framework)
+- Vanilla JS (ES modules) — ไม่มี framework
+- Build ด้วย **Vite**, deploy เป็น static assets บน **Cloudflare Workers**
 - Global CSS ไฟล์เดียว (`css/styles.css`)
 - Hash-based SPA routing (`#dashboard`, `#cluster`, `#burden`, `#priority`, `#compare`, `#prevalence`)
-- ข้อมูลแยกเป็นไฟล์ JS ตามโดเมน (`js/data/`)
+- แต่ละ section เป็น ES module แยก โหลดแบบ lazy (code-split) — หน้า `prevalence` ที่มี SVG แผนที่ใหญ่จะโหลดเฉพาะตอนเปิด
+- ข้อมูล aggregate แยกเป็นไฟล์ JS ตามโดเมน (`js/data/`) เป็นแหล่งข้อมูลเดียว (section import ไปใช้ ไม่มีสำเนาซ้ำ)
 - ฟอนต์: Noto Serif Thai + Sarabun (Google Fonts)
 
 ## โครงสร้าง
 
 ```
 monk/
-├── index.html                    # Shell หลัก
+├── index.html                    # Vite entry (module script + shell)
+├── vite.config.js                # Build config (output → dist/)
+├── wrangler.jsonc                # Cloudflare Workers (assets-only)
 ├── css/
 │   └── styles.css                # Global CSS
 ├── js/
-│   ├── constants.js              # ค่าคงที่ร่วม
-│   ├── utils.js                  # ฟังก์ชั่นช่วยเหลือ (colorFor, animateBars, ...)
-│   ├── nav.js                    # Hash routing
-│   ├── main.js                   # Entry point
-│   ├── data/
-│   │   ├── data-cluster.js       # ข้อมูลคลัสเตอร์โรค (รอบ 1)
-│   │   ├── data-burden.js        # ข้อมูลภาระโรค (รอบ 2)
-│   │   ├── data-priority.js      # ข้อมูล Priority Score (รอบ 3)
-│   │   ├── data-comparison.js    # ข้อมูลเทียบกับคนทั่วไป
-│   │   └── data-prevalence.js    # ข้อมูลสำรวจความชุก + SVG แผนที่
-│   └── section-*.js (6 ไฟล์)    # HTML template + JS logic แต่ละหน้า
+│   ├── main.js                   # Entry point (initNav + navigate)
+│   ├── nav.js                    # Hash router + lazy section loader + teardown
+│   ├── constants.js              # ค่าคงที่ร่วม (export)
+│   ├── utils.js                  # helpers + observer/rAF registry (teardownAnimations)
+│   ├── data/                     # แหล่งข้อมูล aggregate เดียว (export const ...)
+│   │   ├── data-cluster.js       # คลัสเตอร์โรค (รอบ 1)
+│   │   ├── data-burden.js        # ภาระโรค (รอบ 2)
+│   │   ├── data-priority.js      # Priority Score (รอบ 3)
+│   │   ├── data-comparison.js    # เทียบกับคนทั่วไป
+│   │   └── data-prevalence.js    # ความชุก + SVG แผนที่
+│   └── section-*.js (6 ไฟล์)    # แต่ละไฟล์ `export function render(container)`
 └── source/                       # ไฟล์ HTML ต้นฉบับ (reference)
 ```
 
 ## วิธีใช้งาน
 
-เปิด `index.html` ใน browser โดยตรง — ไม่ต้องใช้ server, ไม่ต้อง build
+```bash
+npm install
+npm run dev        # dev server (Vite) ที่ http://localhost:5173
+npm run build      # build → dist/
+npm run preview    # เสิร์ฟ dist/ ในเครื่อง
+```
+
+## Deploy บน Cloudflare Workers
+
+`wrangler.jsonc` ตั้งค่าให้เสิร์ฟ `dist/` เป็น static assets (ไม่มี Worker script)
 
 ```bash
-open index.html
+npm run deploy     # = vite build && wrangler deploy
+# หรือ:  npx wrangler dev   (หลัง build) เพื่อจำลอง edge ในเครื่อง
 ```
+
+ครั้งแรกต้อง `npx wrangler login` ก่อน และแก้ `name` ใน `wrangler.jsonc` ให้ตรงกับชื่อ Worker ที่ต้องการ
+
+## หมายเหตุเรื่องข้อมูล
+
+Dashboard ใช้ข้อมูล **aggregate** (ระดับจังหวัด/เขต) ที่ pre-compute ไว้ใน `js/data/` — ไม่ได้ใช้ raw record
+รายรูป และ**ไม่ควร**อัปโหลด raw 240k record (ข้อมูลสุขภาพรายบุคคล เช่น HIV/วัณโรค/จิตเวช) ขึ้น D1 หรือ
+service ใดที่เปิด public โดยไม่มี access control และการทบทวนความเสี่ยง re-identification ก่อน
 
 ## อ้างอิง
 

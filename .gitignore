@@ -1,1 +1,14 @@
 .DS_Store
+node_modules/
+dist/
+.wrangler/
+*.local
+
+# Raw source data (may contain individual-level health records) — never commit
+/etl/input/*
+!/etl/input/.gitkeep
+!/etl/input/README.md
+/etl/output/
+*.sqlite
+*.sqlite3
+*.db

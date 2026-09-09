@@ -320,6 +320,35 @@ section {
 }
 .impl-list b { color: var(--maroon-800); }
 
+/* method / caveat lists (หน้า "วิธีการ & ข้อจำกัด") */
+.method-list,
+.caveat-list {
+  list-style: none;
+  margin: .6rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .7rem;
+}
+.method-list li,
+.caveat-list li {
+  position: relative;
+  padding-left: 1.5rem;
+  font-size: .9rem;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+.method-list li::before { content: "•"; color: var(--saffron-600); font-weight: 800; position: absolute; left: .3rem; }
+.caveat-list li::before { content: "!"; color: var(--maroon-700); font-weight: 800; position: absolute; left: .45rem; }
+.method-list b,
+.caveat-list b { color: var(--maroon-800); }
+.method-list + .method-list { margin-top: .8rem; }
+#method .card + .card,
+#limits .card,
+#disclaimer .card,
+#usage .card { margin-top: 1rem; }
+#method .card h4 { margin: 0 0 .4rem; }
+
 /* Bar row */
 .bar-row { margin-bottom: .7rem; }
 .bar-row .lbl {
@@ -569,9 +598,45 @@ footer {
   text-align: center;
   padding: 2.2rem 1.25rem;
   font-size: .78rem;
-  opacity: .85;
 }
 footer b { color: var(--saffron-500); }
+.footer-text { margin: 0 auto; max-width: 1100px; opacity: .82; line-height: 1.7; }
+
+/* ===== PARTNER STRIP (top, under nav) ===== */
+.partner-strip {
+  background: var(--parchment, #f5ecd8);
+  border-bottom: 1px solid var(--parchment-deep, #e6d5b8);
+  padding: .5rem 1rem;
+  text-align: center;
+}
+.partner-strip img {
+  display: block;
+  width: 100%;
+  max-width: 1000px;
+  height: auto;
+  margin: 0 auto;
+}
+@media (max-width: 760px) {
+  .partner-strip { padding: .4rem .6rem; overflow-x: auto; }
+  .partner-strip img { max-width: none; min-width: 620px; }
+}
+
+/* ===== FOOTER "supported by" (สสส.) — เล็ก เรียบ เข้ากับโทน parchment ===== */
+.footer-support {
+  background: var(--parchment, #f5ecd8);
+  border: 1px solid var(--parchment-deep, #e6d5b8);
+  border-radius: 10px;
+  width: max-content;
+  max-width: 92%;
+  margin: 1.5rem auto 0;
+  padding: .45rem .85rem;
+}
+.footer-support img {
+  display: block;
+  width: 280px;
+  max-width: 100%;
+  height: auto;
+}
 
 /* ===== ANIMATION ===== */
 .fade-in {
@@ -1253,3 +1318,53 @@ select#diseaseSelect {
 .cl-card .age { font-size: .72rem; color: var(--sage); margin-top: .3rem; }
 .cl-card ul { margin: .6rem 0 0; padding-left: 1rem; font-size: .72rem; color: var(--ink-soft); }
 .cl-card li { margin-bottom: .25rem; }
+
+/* Route loading / error placeholder (SPA navigation) */
+.route-loading {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 4rem 1.2rem;
+  text-align: center;
+  color: var(--ink-soft, #6b5d4f);
+  font-size: .95rem;
+}
+
+/* Year tabs (สลับปีข้อมูล D1) */
+.year-tabs {
+  position: sticky;
+  top: 52px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem 1rem;
+  max-width: 1180px;
+  margin: 0 auto;
+  background: var(--parchment, #f5ecd8);
+  border-bottom: 1px solid var(--parchment-deep, #e6d5b8);
+  flex-wrap: wrap;
+}
+.year-tabs-label {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--ink-soft, #6b5d4f);
+  margin-right: .2rem;
+}
+.year-tab {
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  padding: .3rem .85rem;
+  border: 1px solid var(--parchment-deep, #d9c3a0);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft, #6b5d4f);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.year-tab:hover { border-color: var(--saffron-500, #c97b1d); }
+.year-tab.active {
+  background: var(--maroon-800, #6b1e23);
+  border-color: var(--maroon-800, #6b1e23);
+  color: #fff;
+}
