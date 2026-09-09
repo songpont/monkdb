@@ -37,6 +37,8 @@ const REGION_NAME = {
   12: 'เขต 12 (สงขลา)', 13: 'กรุงเทพมหานคร'
 };
 
+const ICD30 = ['I10','E11','E78','N18','J06','I63','I25','A09','H25','J18','J44','S06','M54','C22','K29','C34','N40','F10','I50','C18-C21','F32','A15-A16','B20-B24','M10','F15','N20','L03','C61','J45','U07.1'];
+
 const GEO_LEVELS = new Set(['national', 'region', 'province', 'amphur', 'temple']);
 const STATUSES = new Set(['all', 'monk', 'novice', 'disrobed', 'deceased']);
 const AGE_BANDS = new Set(['all', '<20', '20-39', '40-59', '60+']);
@@ -117,19 +119,20 @@ async function handleApi(url, env) {
       }
 
       case 'cluster': {
-        // multimorbidity + 6 โรคหลัก ต่อ national / 13 เขต / 77 จังหวัด (status=all, age=all)
-        const CODES = ['I10', 'E78', 'E11', 'N18', 'M10', 'J44'];
+        // multimorbidity + 30 โรค ต่อ national / 13 เขต / 77 จังหวัด · status = all | monk | novice ...
+        const CODES = ICD30;
+        const st = status; // 'all' โดย default (?status=)
         const pop = (await env.DB.prepare(
           `SELECT geo_level, geo_id, n, n_hiso, n_multi2, n_multi3, n_multi4, n_multi5 FROM fact_pop
-           WHERE year=?1 AND status='all' AND age_band='all'
+           WHERE year=?1 AND status=?2 AND age_band='all'
              AND geo_level IN ('national','region','province')`
-        ).bind(+year).all()).results;
+        ).bind(+year, st).all()).results;
         // ช่วงอายุทุก band (ตัวหาร pct_60plus = เฉพาะผู้ที่ทราบอายุ ไม่ใช่ทั้งทะเบียน)
         const popBands = (await env.DB.prepare(
           `SELECT geo_level, geo_id, age_band, n FROM fact_pop
-           WHERE year=?1 AND status='all' AND age_band IN ('<20','20-39','40-59','60+')
+           WHERE year=?1 AND status=?2 AND age_band IN ('<20','20-39','40-59','60+')
              AND geo_level IN ('national','region','province')`
-        ).bind(+year).all()).results;
+        ).bind(+year, st).all()).results;
         const n60By = {}, nAgeKnownBy = {};
         for (const r of popBands) {
           const k = `${r.geo_level}|${r.geo_id}`;
@@ -138,9 +141,9 @@ async function handleApi(url, env) {
         }
         const dis = (await env.DB.prepare(
           `SELECT geo_level, geo_id, icd, n_pop, n_cases FROM fact_disease
-           WHERE year=?1 AND status='all' AND age_band='all' AND geo_level IN ('national','region','province')
-             AND icd IN ('I10','E78','E11','N18','M10','J44')`
-        ).bind(+year).all()).results;
+           WHERE year=?1 AND status=?2 AND age_band='all'
+             AND geo_level IN ('national','region','province')`
+        ).bind(+year, st).all()).results;
         const prov = (await env.DB.prepare(
           `SELECT province, region_id, region_name FROM dim_province`
         ).all()).results;
@@ -167,6 +170,8 @@ async function handleApi(url, env) {
         const nat = byGeo['national|TH'] || {};
         const out = {
           year: +year,
+          status: st,
+          codes: CODES,
           national_multi: {
             2: nat.pm2 ?? null, 3: nat.pm3 ?? null, 4: nat.pm4 ?? null, 5: nat.pm5 ?? null
           },
@@ -191,12 +196,13 @@ async function handleApi(url, env) {
 
       case 'burden': {
         // multimorbidity ตามช่วงอายุ (national / region / province)  bands: <20,20-39,40-59,60+
+        const st = status;
         const rows = (await env.DB.prepare(
           `SELECT geo_level, geo_id, age_band, n_hiso, n_multi2, n_multi3, n_multi4, n_multi5 FROM fact_pop
-           WHERE year=?1 AND status='all'
+           WHERE year=?1 AND status=?2
              AND age_band IN ('<20','20-39','40-59','60+')
              AND geo_level IN ('national','region','province')`
-        ).bind(+year).all()).results;
+        ).bind(+year, st).all()).results;
         const prov = (await env.DB.prepare('SELECT province, region_id, region_name FROM dim_province').all()).results;
         const region_name = {}; for (const p of prov) region_name[p.region_id] = p.region_name;
 
@@ -219,7 +225,7 @@ async function handleApi(url, env) {
         };
         const pctK = (b, k) => b && b.hiso ? Math.round((b['m' + k] / b.hiso) * 1000) / 10 : null;
 
-        const out = { year: +year, national_bg: {}, province_bg: {}, region_age: { national: {}, regions: {} } };
+        const out = { year: +year, status: st, national_bg: {}, province_bg: {}, region_age: { national: {}, regions: {} } };
 
         const nb = band3(g['national|TH']);
         if (nb) for (const k of [2, 3, 4, 5]) {

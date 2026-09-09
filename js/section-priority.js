@@ -9,9 +9,9 @@ import {
   PRIORITY_SCORE,
   MORTALITY_PROVINCE as S_MORTALITY_PROVINCE
 } from './data/data-priority.js';
-import { loadPriorityMortality, loadCluster } from './api.js';
-import { mountYearTabs } from './year-tabs.js';
-import { renderYearCompare, clusterCompareIndex } from './year-compare.js';
+import { loadPriorityMortality } from './api.js';
+import { mountYearTabs, mountYearNote } from './year-tabs.js';
+import { renderClusterYearCompare } from './year-compare.js';
 
 // PRIORITY_SCORE = คะแนนประกอบ คงเป็น static (ไม่ได้เก็บสูตรใน D1)
 let MORTALITY_REGION = S_MORTALITY_REGION;
@@ -22,13 +22,6 @@ function onYearChange(container, y) {
   currentYear = y;
   render(container);
 }
-
-const CMP_METRICS = [
-  { key: 'pm2', label: 'ป่วยร่วม ≥2 โรค' },
-  { key: 'pm3', label: 'ป่วยร่วม ≥3 โรค' },
-  { key: 'pm4', label: 'ป่วยร่วม ≥4 โรค' },
-  { key: 'pm5', label: 'ป่วยร่วม ≥5 โรค' }
-];
 
 export async function render(container) {
   if (currentYear === 'compare') return renderCompareView(container);
@@ -235,6 +228,8 @@ export async function render(container) {
       years: [2568], current: currentYear, compare: true,
       onChange: (y) => onYearChange(container, y)
     });
+  } else {
+    mountYearNote(container, { year: currentYear, source });
   }
 }
 
@@ -242,33 +237,18 @@ async function renderCompareView(container) {
   container.innerHTML = `
 <header class="hero"><div class="hero-inner">
   <p class="eyebrow" style="color:var(--saffron-500);">Priority Score · เทียบรายปี</p>
-  <h1>สัดส่วนพระสงฆ์ที่ป่วยหลายโรคพร้อมกัน<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘ รายจังหวัด/เขต</span></h1>
+  <h1>ปัจจัยที่ใช้จัดลำดับ เปลี่ยนไปอย่างไร<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘ รายจังหวัด/เขต · เลือกสถานะได้</span></h1>
 </div></header>
-<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+<section id="cmp"></section>`;
 
   mountYearTabs(container, {
     years: [2568], current: 'compare', compare: true,
     onChange: (y) => onYearChange(container, y)
   });
 
-  const S = { NATIONAL_MULTI: {}, REGION_SUMMARY: [], REGION_PROVINCES: {} };
-  const [nw, od] = await Promise.all([loadCluster(S, 2568), loadCluster(S, 2567)]);
-  const cmp = container.querySelector('#cmp');
-  if (nw.source !== 'd1' || od.source !== 'd1') {
-    cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์</div>';
-    return;
-  }
-  const iN = clusterCompareIndex(nw.data), iO = clusterCompareIndex(od.data);
-
-  renderYearCompare(cmp, {
-    yearOld: 2567, yearNew: 2568, geos: iN.geos, defaultGeo: 'national|TH',
-    intro: 'เทียบสัดส่วนพระสงฆ์ที่ตรวจพบว่าป่วยหลายโรคพร้อมกัน ระหว่าง พ.ศ. ๒๕๖๗ กับ ๒๕๖๘ (ตัวเลขนับรวมสะสม จึงมีแต่เพิ่มขึ้น)',
-    getRows: (gid) => {
-      const n = iN.get(gid), o = iO.get(gid);
-      if (!n || !o) return [];
-      return CMP_METRICS.map((m) => ({ key: m.key, label: m.label, a: o[m.key], b: n[m.key] }));
-    },
-    note: 'คะแนน Priority Score เป็นการให้คะแนนโดยเทียบทุกจังหวัดกัน และมีเฉพาะ พ.ศ. ๒๕๖๘ จึงยังเทียบรายปีไม่ได้ · จำนวนมรณภาพดูแบบรายปีได้ที่มุมมองปกติ'
+  await renderClusterYearCompare(container.querySelector('#cmp'), {
+    intro: 'เทียบปัจจัยที่ Priority Score ใช้จัดลำดับ — สัดส่วนป่วยร่วมหลายโรค และการวินิจฉัยแต่ละโรค ระหว่างสองปี (ตัวเลขนับรวมสะสม จึงมีแต่เพิ่มขึ้น)',
+    note: 'คะแนน Priority Score รวม มีเฉพาะ พ.ศ. ๒๕๖๘ (คำนวณโดยเทียบทุกจังหวัดกัน) จึงยังเทียบรายปีไม่ได้ · จำนวนมรณภาพดูแบบรายปีได้ที่มุมมองปกติ'
   });
   animateFadeIn(container);
 }

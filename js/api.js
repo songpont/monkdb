@@ -5,12 +5,15 @@
 
 let apiUp = null; // null = ยังไม่รู้, true/false = เช็คแล้ว
 
-/** เช็คว่า /api พร้อมใช้ (cache ผลไว้ทั้ง session) */
+/** เช็คว่า /api พร้อมใช้ (cache ผลไว้ทั้ง session) — ยืนยันด้วยการ parse JSON จริง
+    (บน build ที่ไม่มี Worker /api/meta จะได้ index.html กลับมา → parse ไม่ผ่าน) */
 export async function apiAvailable() {
   if (apiUp !== null) return apiUp;
   try {
     const r = await fetch('/api/meta', { headers: { accept: 'application/json' } });
-    apiUp = r.ok && (r.headers.get('content-type') || '').includes('json');
+    if (!r.ok) { apiUp = false; return apiUp; }
+    const j = await r.json();
+    apiUp = !!j && typeof j === 'object' && !Array.isArray(j);
   } catch {
     apiUp = false;
   }
@@ -67,19 +70,20 @@ export async function loadPrevalence(staticData, year = 2568) {
   }
 }
 
-/** หน้า "คลัสเตอร์โรค" — { NATIONAL_MULTI, REGION_SUMMARY, REGION_PROVINCES } */
-export async function loadCluster(staticSets, year = 2568) {
+/** หน้า "คลัสเตอร์โรค" — { NATIONAL_MULTI, REGION_SUMMARY, REGION_PROVINCES } · status: all|monk|novice */
+export async function loadCluster(staticSets, year = 2568, status = 'all') {
   try {
     if (!(await apiAvailable())) throw new Error('api down');
-    const d = await getJSON(`/api/cluster?year=${year}`);
+    const d = await getJSON(`/api/cluster?year=${year}&status=${status}`);
     if (!d.regions?.length) throw new Error('empty');
     return {
       source: 'd1',
       data: {
         NATIONAL_MULTI: d.national_multi,
-        NATIONAL: d.national || null,          // { n, pct_multi, pct_60plus, pm2-5, I10.. }
-        REGION_SUMMARY: d.regions,             // items มี pct_60plus ด้วย
-        REGION_PROVINCES: d.region_provinces
+        NATIONAL: d.national || null,          // { n, pct_multi, pct_60plus, pm2-5, I10..U07.1 }
+        REGION_SUMMARY: d.regions,             // items มี 30 โรค + pct_60plus
+        REGION_PROVINCES: d.region_provinces,
+        CODES: d.codes || null
       }
     };
   } catch (e) {
@@ -89,10 +93,10 @@ export async function loadCluster(staticSets, year = 2568) {
 }
 
 /** หน้า "ภาระโรค" — { NATIONAL_BG, PROVINCE_BG, REGION_AGE_DATA } (fallback ราย province/region) */
-export async function loadBurden(staticSets, year = 2568) {
+export async function loadBurden(staticSets, year = 2568, status = 'all') {
   try {
     if (!(await apiAvailable())) throw new Error('api down');
-    const d = await getJSON(`/api/burden?year=${year}`);
+    const d = await getJSON(`/api/burden?year=${year}&status=${status}`);
     if (!d.national_bg || !d.national_bg[2]) throw new Error('empty');
 
     const PROVINCE_BG = { ...staticSets.PROVINCE_BG };

@@ -4,7 +4,26 @@
    ============================================================ */
 
 const THAI_DIGITS = ['๐', '๑', '๒', '๓', '๔', '๕', '๖', '๗', '๘', '๙'];
-const toThai = (n) => String(n).replace(/\d/g, (d) => THAI_DIGITS[+d]);
+export const toThai = (n) => String(n).replace(/\d/g, (d) => THAI_DIGITS[+d]);
+
+/**
+ * แถบบอกปีข้อมูลแบบคงที่ (ใช้เมื่อไม่มี D1 ให้สลับ / หน้าที่ใช้ static)
+ * @param {HTMLElement} container
+ * @param {{year:number, source?:'d1'|'static', note?:string}} opts
+ */
+export function mountYearNote(container, { year, source = 'static', note }) {
+  const anchor = container.querySelector('header.hero') || container.firstElementChild;
+  if (!anchor) return;
+  container.querySelector('.year-tabs')?.remove();
+  const bar = document.createElement('div');
+  bar.className = 'year-tabs';
+  bar.innerHTML =
+    `<span class="year-tabs-label">ปีข้อมูล</span>` +
+    `<span class="year-static">พ.ศ. ${toThai(year)}</span>` +
+    (source === 'static' ? `<span class="year-src-note">ข้อมูลสำรองในหน้าเว็บ</span>` : '') +
+    (note ? `<span class="year-src-note">${note}</span>` : '');
+  anchor.after(bar);
+}
 
 /**
  * แทรกแถบสลับปีไว้ใต้ <header class="hero"> ของ container

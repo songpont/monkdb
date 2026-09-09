@@ -10,9 +10,8 @@ import {
   REGION_PROVINCES as S_REGION_PROVINCES
 } from './data/data-cluster.js';
 import { loadCluster } from './api.js';
-import { mountYearTabs } from './year-tabs.js';
-import { renderYearCompare } from './year-compare.js';
-import { DISEASE_NAMES } from './constants.js';
+import { mountYearTabs, mountYearNote } from './year-tabs.js';
+import { renderClusterYearCompare } from './year-compare.js';
 
 // เขียนทับด้วยข้อมูล D1 ใน render() ถ้าใช้ได้ — helper ทั้งหมดอ้าง identifier เปล่า
 let NATIONAL_MULTI = S_NATIONAL_MULTI;
@@ -20,11 +19,6 @@ let REGION_SUMMARY = S_REGION_SUMMARY;
 let REGION_PROVINCES = S_REGION_PROVINCES;
 const YEARS = [2568, 2567];
 let currentYear = 2568; // ปีล่าสุดเป็นค่าเริ่มต้น
-
-const CL_CODES = ['I10', 'E78', 'E11', 'N18', 'M10', 'J44'];
-const clLabel = (k) =>
-  k[0] === 'p' && k[1] === 'm' ? `ป่วยร่วม ≥${k.slice(2)} โรค`
-    : `${DISEASE_NAMES[k] || k} (${k})`;
 
 function onYearChange(container, y) { currentYear = y; teardownAnimations(); render(container); }
 
@@ -353,6 +347,8 @@ export async function render(container) {
       years: YEARS, current: currentYear, compare: true,
       onChange: (y) => onYearChange(container, y)
     });
+  } else {
+    mountYearNote(container, { year: currentYear, source });
   }
 }
 
@@ -360,46 +356,17 @@ async function renderCompareView(container) {
   container.innerHTML = `
 <header class="hero"><div class="hero-inner">
   <p class="eyebrow" style="color:var(--saffron-500);">คลัสเตอร์โรค · เทียบรายปี</p>
-  <h1>ป่วยร่วมหลายโรค + โรคหลัก<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘</span></h1>
+  <h1>ป่วยร่วมหลายโรค + โรครายรหัส<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘ · เลือกพื้นที่และสถานะได้</span></h1>
 </div></header>
-<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+<section id="cmp"></section>`;
 
   mountYearTabs(container, {
     years: YEARS, current: 'compare', compare: true,
     onChange: (y) => onYearChange(container, y)
   });
 
-  const S = { NATIONAL_MULTI: S_NATIONAL_MULTI, REGION_SUMMARY: S_REGION_SUMMARY, REGION_PROVINCES: S_REGION_PROVINCES };
-  const [nw, od] = await Promise.all([loadCluster(S, 2568), loadCluster(S, 2567)]);
-  const cmp = container.querySelector('#cmp');
-  if (nw.source !== 'd1' || od.source !== 'd1') {
-    cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์</div>';
-    return;
-  }
-
-  // แปลงเป็น map: geoId -> row (per year)
-  const idx = (D) => {
-    const m = { 'national|TH': { pm2: D.NATIONAL_MULTI[2], pm3: D.NATIONAL_MULTI[3], pm4: D.NATIONAL_MULTI[4], pm5: D.NATIONAL_MULTI[5] } };
-    for (const r of D.REGION_SUMMARY) m[`region|${r.region}`] = r;
-    for (const rid in D.REGION_PROVINCES) for (const p of D.REGION_PROVINCES[rid]) m[`province|${p.affiliation_province_name}`] = p;
-    return m;
-  };
-  const mN = idx(nw.data), mO = idx(od.data);
-
-  const geos = [{ id: 'national|TH', label: 'ทั้งประเทศ' }];
-  for (const r of nw.data.REGION_SUMMARY) geos.push({ id: `region|${r.region}`, label: r.region_name });
-  for (const rid in nw.data.REGION_PROVINCES)
-    for (const p of nw.data.REGION_PROVINCES[rid]) geos.push({ id: `province|${p.affiliation_province_name}`, label: `จังหวัด${p.affiliation_province_name}` });
-
-  renderYearCompare(cmp, {
-    yearOld: 2567, yearNew: 2568, geos, defaultGeo: 'national|TH',
-    getRows: (geoId) => {
-      const n = mN[geoId], o = mO[geoId];
-      if (!n || !o) return [];
-      const keys = geoId === 'national|TH' ? ['pm2', 'pm3', 'pm4', 'pm5'] : ['pm2', 'pm3', 'pm4', 'pm5', ...CL_CODES];
-      return keys.map((k) => ({ key: k, label: clLabel(k), a: o[k], b: n[k] }));
-    },
-    note: "ระดับประเทศแสดงเฉพาะสัดส่วนป่วยร่วมหลายโรค · ระดับเขตและจังหวัดมีโรคหลัก 6 โรคเพิ่มด้วย"
+  await renderClusterYearCompare(container.querySelector('#cmp'), {
+    note: 'แสดงป่วยร่วม ≥2–5 โรค และทั้ง 30 รหัสโรค · เลือก "สถานะ" เพื่อดูเฉพาะพระภิกษุหรือสามเณร · รายการที่ปีใดถูกตัด (ข้อมูลน้อย) จะไม่แสดง'
   });
   animateFadeIn(container);
 }

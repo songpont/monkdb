@@ -9,14 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
-    "deploy:staging": "vite build && wrangler deploy --env staging",
-    "deploy:v2": "vite build && wrangler deploy --env v2",
     "cf-dev": "vite build && wrangler dev",
-    "cf-dev:staging": "vite build && wrangler dev --env staging",
-    "db:migrate:staging": "wrangler d1 migrations apply monk-health-staging --env staging --remote",
-    "db:seed:staging": "wrangler d1 execute monk-health-staging --env staging --remote --file etl/output/seed.sql",
-    "db:migrate:v2": "wrangler d1 migrations apply monk-health --env v2 --remote",
-    "db:seed:v2": "wrangler d1 execute monk-health --env v2 --remote --file etl/output/seed.sql"
+    "db:migrate": "wrangler d1 migrations apply monk-health --remote",
+    "db:seed": "wrangler d1 execute monk-health --remote --file etl/output/seed.sql"
   },
   "devDependencies": {
     "jsdom": "^30.0.1",

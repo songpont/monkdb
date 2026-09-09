@@ -10,7 +10,7 @@ import {
   REGION_AGE_DATA as S_REGION_AGE_DATA
 } from './data/data-burden.js';
 import { loadBurden } from './api.js';
-import { mountYearTabs } from './year-tabs.js';
+import { mountYearTabs, mountYearNote } from './year-tabs.js';
 import { renderYearCompare } from './year-compare.js';
 
 const YEARS = [2568, 2567];
@@ -281,25 +281,39 @@ export async function render(container) {
       years: YEARS, current: currentYear, compare: true,
       onChange: (y) => onYearChange(container, y)
     });
+  } else {
+    mountYearNote(container, { year: currentYear, source });
   }
 }
+
+const BURDEN_STATUS = [
+  { v: 'all', label: 'ทั้งหมด (พระภิกษุ + สามเณร)' },
+  { v: 'monk', label: 'เฉพาะพระภิกษุ' },
+  { v: 'novice', label: 'เฉพาะสามเณร' }
+];
 
 async function renderCompareView(container) {
   container.innerHTML = `
 <header class="hero"><div class="hero-inner">
   <p class="eyebrow" style="color:var(--saffron-500);">ภาระโรค · เทียบรายปี</p>
-  <h1>ป่วยร่วมหลายโรค × ช่วงอายุ<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘</span></h1>
+  <h1>ป่วยร่วมหลายโรค × ช่วงอายุ<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘ · เลือกสถานะได้</span></h1>
 </div></header>
-<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+<section id="cmp"></section>`;
 
   mountYearTabs(container, {
     years: YEARS, current: 'compare', compare: true,
     onChange: (y) => onYearChange(container, y)
   });
 
-  const S = { NATIONAL_BG: S_NATIONAL_BG, PROVINCE_BG: S_PROVINCE_BG, REGION_AGE_DATA: S_REGION_AGE_DATA };
-  const [nw, od] = await Promise.all([loadBurden(S, 2568), loadBurden(S, 2567)]);
   const cmp = container.querySelector('#cmp');
+  let st = 'all';
+  await load();
+  animateFadeIn(container);
+
+  async function load() {
+    cmp.innerHTML = '<div class="route-loading">กำลังโหลดทั้งสองปี…</div>';
+  const S = { NATIONAL_BG: S_NATIONAL_BG, PROVINCE_BG: S_PROVINCE_BG, REGION_AGE_DATA: S_REGION_AGE_DATA };
+  const [nw, od] = await Promise.all([loadBurden(S, 2568, st), loadBurden(S, 2567, st)]);
   if (nw.source !== 'd1' || od.source !== 'd1') {
     cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์</div>';
     return;
@@ -349,7 +363,15 @@ async function renderCompareView(container) {
     },
     note: "ระดับประเทศและเขตแสดงสัดส่วนป่วยร่วม ≥2 โรค แยกตามช่วงอายุ · ระดับจังหวัดแสดงป่วยร่วม ≥2 ถึง ≥5 โรค เฉพาะกลุ่มอายุ 60 ปีขึ้นไป"
   });
-  animateFadeIn(container);
+
+  const fr = cmp.querySelector('.filter-row');
+  if (fr) {
+    fr.insertAdjacentHTML('beforeend',
+      `<label style="font-size:.82rem;font-weight:700;color:var(--maroon-800);margin-left:1rem;">สถานะ:
+        <select class="yc-status">${BURDEN_STATUS.map((s) => `<option value="${s.v}"${s.v === st ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>`);
+    fr.querySelector('.yc-status').addEventListener('change', (e) => { st = e.target.value; load(); });
+  }
+  }
 }
 
 function initBurden(container, source) {

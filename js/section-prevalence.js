@@ -6,7 +6,7 @@ import {
 } from './utils.js';
 import { DATA as STATIC_DATA, MAP } from './data/data-prevalence.js';
 import { loadPrevalence } from './api.js';
-import { mountYearTabs } from './year-tabs.js';
+import { mountYearTabs, mountYearNote } from './year-tabs.js';
 import { renderYearCompare } from './year-compare.js';
 
 const YEARS = [2568, 2567];
@@ -161,6 +161,8 @@ export async function render(container) {
       years: YEARS, current: currentYear, compare: true,
       onChange: (y) => onYearChange(container, y)
     });
+  } else {
+    mountYearNote(container, { year: currentYear, source });
   }
 }
 

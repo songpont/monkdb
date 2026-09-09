@@ -4,20 +4,11 @@ import {
   animateFadeIn, animateBars, animateGapBars, animateCounters, animateGrpBars,
   trackObserver, trackRaf, teardownAnimations
 } from './utils.js';
-import { loadCluster } from './api.js';
 import { mountYearTabs } from './year-tabs.js';
-import { renderYearCompare, clusterCompareIndex } from './year-compare.js';
+import { renderClusterYearCompare } from './year-compare.js';
 
 let currentYear = 2568;
 function onYearChange(container, y) { currentYear = y; teardownAnimations(); render(container); }
-
-const DASH_METRICS = [
-  { key: 'pm2', label: 'ป่วยร่วม ≥2 โรค' },
-  { key: 'I10', label: 'ความดันโลหิตสูง (I10)' },
-  { key: 'E78', label: 'ไขมันในเลือดสูง (E78)' },
-  { key: 'E11', label: 'เบาหวาน (E11)' },
-  { key: 'N18', label: 'ไตวายเรื้อรัง (N18)' }
-];
 
 export async function render(container) {
   if (currentYear === 'compare') return renderCompareView(container);
@@ -649,31 +640,17 @@ async function renderCompareView(container) {
 <header class="hero"><div class="hero-inner"><div>
   <p class="eyebrow">ภาพรวม · เทียบรายปี</p>
   <h1>สถานการณ์สุขภาพพระสงฆ์<br><span>เทียบ พ.ศ. ๒๕๖๗ ↔ ๒๕๖๘</span></h1>
-  <p class="lede">ตัวเลขหลักจากการเชื่อมข้อมูล HISO — สัดส่วนพระสงฆ์ที่ป่วยหลายโรคพร้อมกัน และโรคหลัก ๔ โรค ตั้งแต่ระดับประเทศถึงรายจังหวัด</p>
+  <p class="lede">สัดส่วนพระสงฆ์ที่ป่วยหลายโรคพร้อมกัน และการวินิจฉัยทั้ง ๓๐ โรค ตั้งแต่ระดับประเทศถึงรายจังหวัด — เลือกพื้นที่และสถานะได้</p>
 </div></div></header>
-<section id="cmp"><div class="route-loading">กำลังโหลดทั้งสองปี…</div></section>`;
+<section id="cmp"></section>`;
 
   mountYearTabs(container, {
     years: [2568], current: 'compare', compare: true,
     onChange: (y) => onYearChange(container, y)
   });
 
-  const S = { NATIONAL_MULTI: {}, REGION_SUMMARY: [], REGION_PROVINCES: {} };
-  const [nw, od] = await Promise.all([loadCluster(S, 2568), loadCluster(S, 2567)]);
-  const cmp = container.querySelector('#cmp');
-  if (nw.source !== 'd1' || od.source !== 'd1') {
-    cmp.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์ (เวอร์ชันนี้ยังใช้ข้อมูลสำรอง)</div>';
-    return;
-  }
-  const iN = clusterCompareIndex(nw.data), iO = clusterCompareIndex(od.data);
-  renderYearCompare(cmp, {
-    yearOld: 2567, yearNew: 2568, geos: iN.geos, defaultGeo: 'national|TH',
+  await renderClusterYearCompare(container.querySelector('#cmp'), {
     intro: 'ตัวเลขนี้นับรวมทุกคนที่เคยตรวจพบว่าเป็นโรค (ไม่เริ่มนับใหม่รายปี) — ส่วนต่างคือจำนวนที่ถูกตรวจพบเพิ่มขึ้นในรอบปี ระหว่าง พ.ศ. ๒๕๖๗ กับ ๒๕๖๘',
-    getRows: (gid) => {
-      const n = iN.get(gid), o = iO.get(gid);
-      if (!n || !o) return [];
-      return DASH_METRICS.map((m) => ({ key: m.key, label: m.label, a: o[m.key], b: n[m.key] }));
-    },
     note: 'ส่วนธรรมนูญ ๕ หมวด แผนขับเคลื่อน และภาวนา ๔ เป็นเนื้อหาเชิงหลักการ ไม่เกี่ยวกับปีข้อมูล'
   });
   animateFadeIn(container);

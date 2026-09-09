@@ -2,6 +2,15 @@
    Year-compare view — เทียบ 2 ปี (Δ percentage point) แบบใช้ร่วมทุก section
    ============================================================ */
 
+import { loadCluster } from './api.js';
+import { DISEASE_NAMES } from './constants.js';
+
+const STATUS_OPTS = [
+  { v: 'all', label: 'ทั้งหมด (พระภิกษุ + สามเณร)' },
+  { v: 'monk', label: 'เฉพาะพระภิกษุ' },
+  { v: 'novice', label: 'เฉพาะสามเณร' }
+];
+
 const THAI = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
 const th = (n) => String(n).replace(/\d/g, (d) => THAI[+d]);
 const sign = (d) => (d > 0 ? '+' : '') + d.toFixed(d > -1 && d < 1 ? 2 : 1);
@@ -118,4 +127,58 @@ export function clusterCompareIndex(clData) {
     }
   }
   return { geos, get: (id) => m[id] };
+}
+
+/**
+ * เทียบปีจากข้อมูล cluster (ป่วยร่วม ≥2–5 + 30 โรค) พร้อมตัวกรองสถานะ (พระภิกษุ/สามเณร)
+ * ใช้ในหน้า คลัสเตอร์โรค / Priority Score / ภาพรวม
+ * @param {HTMLElement} host
+ * @param {{yearOld?:number, yearNew?:number, metricKeys?:string[], intro?:string, note?:string}} opts
+ */
+export async function renderClusterYearCompare(host, opts = {}) {
+  const yearOld = opts.yearOld || 2567;
+  const yearNew = opts.yearNew || 2568;
+  let st = 'all';
+  host.innerHTML = '<div class="route-loading">กำลังโหลดทั้งสองปี…</div>';
+
+  async function load() {
+    const [nw, od] = await Promise.all([
+      loadCluster({}, yearNew, st),
+      loadCluster({}, yearOld, st)
+    ]);
+    if (nw.source !== 'd1' || od.source !== 'd1') {
+      host.innerHTML = '<div class="card">โหมดเทียบปีต้องใช้ข้อมูลจากฐานข้อมูลออนไลน์</div>';
+      return;
+    }
+    const iN = clusterCompareIndex(nw.data), iO = clusterCompareIndex(od.data);
+    const codes = nw.data.CODES || [];
+    let metrics = [
+      { key: 'pm2', label: 'ป่วยร่วม ≥2 โรค' },
+      { key: 'pm3', label: 'ป่วยร่วม ≥3 โรค' },
+      { key: 'pm4', label: 'ป่วยร่วม ≥4 โรค' },
+      { key: 'pm5', label: 'ป่วยร่วม ≥5 โรค' },
+      ...codes.map((c) => ({ key: c, label: `${DISEASE_NAMES[c] || c} (${c})` }))
+    ];
+    if (opts.metricKeys) metrics = metrics.filter((m) => opts.metricKeys.includes(m.key));
+
+    renderYearCompare(host, {
+      yearOld, yearNew, geos: iN.geos, defaultGeo: 'national|TH',
+      intro: opts.intro, note: opts.note,
+      getRows: (gid) => {
+        const n = iN.get(gid), o = iO.get(gid);
+        if (!n || !o) return [];
+        return metrics.map((m) => ({ key: m.key, label: m.label, a: o[m.key], b: n[m.key] }));
+      }
+    });
+
+    // แทรกตัวกรองสถานะเข้าไปในแถวตัวเลือก
+    const fr = host.querySelector('.filter-row');
+    if (fr) {
+      fr.insertAdjacentHTML('beforeend',
+        `<label style="font-size:.82rem;font-weight:700;color:var(--maroon-800);margin-left:1rem;">สถานะ:
+          <select class="yc-status">${STATUS_OPTS.map((s) => `<option value="${s.v}"${s.v === st ? ' selected' : ''}>${s.label}</option>`).join('')}</select></label>`);
+      fr.querySelector('.yc-status').addEventListener('change', (e) => { st = e.target.value; load(); });
+    }
+  }
+  await load();
 }
